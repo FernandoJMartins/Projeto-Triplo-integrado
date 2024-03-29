@@ -11,6 +11,7 @@ class Client:
         self.port = port
         self.CodesTranslate = None
         self.conected = False
+        self.listening = True
         self.lock = threading.Lock()
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -78,18 +79,19 @@ class Client:
         """
         
         log = self.login()
+        
+        if ("VOLTAR") in log:
+            self.validate_choice()
+        
         self.sock.send(log.encode("utf-8"))
+
         validate_login = self.sock.recv(1024).decode("utf-8").split(" ")
         if validate_login[0] == "200": 
             print(validate_login) #Login efetuado com Sucesso!
-        
-        if validate_login[0] == "299": 
-            print(validate_login)
-            self.Validate_login()
 
-        while validate_login[0] == "201":
+        if validate_login[0] == "201":
              #translate bug 
-            print(self.CodesTranslate[validate_login[0]]) #Login nao efetuado, Usuário ou Senha incorretos!
+            print(validate_login, self.CodesTranslate[validate_login[0]]) #Login nao efetuado, Usuário ou Senha incorretos!
             self.Validate_login()
         
         print(f"Servidor: {validate_login}")
@@ -174,13 +176,12 @@ class Client:
                 intensidade = int(input("Intensidade: "))
                 
                 self.sock.send(f"type&undecided&{assunto}&{intensidade}".encode("utf-8"))
+                print("\nProcurando por um(a) Conselheiro(a)...\n")
                 response_server = self.sock.recv(4096).decode("utf-8").split("&")
-                print("linha 132", response_server)
                 if response_server[0] == "231":
                     print(self.CodesTranslate[response_server[0]])
                     self.set_intensity(assunto, self.sock)
                 else:
-                    print("\nProcurando por um(a) Indeciso(a)...\n")
                     self.waitingConnection(response_server)
                     return
             except Exception:
@@ -208,14 +209,14 @@ class Client:
         verificando o código da mensagem. Se o código não for "250" (indicando que a mensagem não é uma indicação de desconexão), imprime o conteúdo da mensagem. 
         Se o código for "250", significa que o cliente foi desconectado do chat, então o método imprime a mensagem correspondente e define `conected` como False, encerrando o loop.
         """
-        while True:
+        while self.listening:
             response_server = self.sock.recv(4096).decode("utf-8").split("&")
             if not response_server[0] == "250":
                 print(response_server[1])
             else:
                 print("VOCE FOI DESCONECTADO!!!")
                 self.conected = False 
-                break
+                self.listening = False
             
     def DigitOnchat(self):
         """
@@ -237,17 +238,14 @@ class Client:
             try:
                 print("Digite 'Voltar' para retornar ao menu anterior.")
                 user = input("\nUsuario: ")
-                if user.upper() == "VOLTAR":
-                    self.validate_choice()
                 password = input("Senha: ")
-                
-                if password.upper == "VOLTAR":
+
+                if user.upper() == "VOLTAR" or password.upper == "VOLTAR":
                     self.validate_choice()
-                response = f"login {user} {password}"
-                return response
             except Exception:
-                
                 break
+            response = f"login {user} {password}"
+            return response
 
     def signin(self):
         """
@@ -258,11 +256,9 @@ class Client:
         try:
             print("Digite 'Voltar' para retornar ao menu anterior.")
             user = input("\nUsuario: ")
-            if user.upper() == "VOLTAR":
-                self.validate_choice()
-                
             password = input("Senha: ")
-            if password.upper == "VOLTAR":
+
+            if user.upper() == "VOLTAR" or password.upper == "VOLTAR":
                 self.validate_choice()
                 
             assert len(password) >= 6

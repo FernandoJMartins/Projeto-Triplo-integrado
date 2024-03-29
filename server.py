@@ -18,6 +18,7 @@ class Server:
         self.MinNote = None
         self.Lock = threading.Lock()
         self.OnlineUsers = ChainingHashTable(20) 
+        self.clientComunicationRunning = True
         
     def setDictionary(self):
         """ Atribui ao atributo MinNote da classe o dicionário que
@@ -87,16 +88,8 @@ class Server:
                                         self.OnlineUsers.put(msg_client[1], msg_client[1])
                                     login = True
                                     break
-                                else:
-                                    connection.send("201".encode('utf-8')) 
-                                    msg_client = connection.recv(4096).decode("utf-8").split(" ")
-                                    continue
-                            else:
-                                connection.send("201".encode('utf-8'))
-                                msg_client = connection.recv(4096).decode("utf-8").split(" ") 
-                                continue
                         if login == False:
-                            connection.send("299".encode('utf-8'))
+                            connection.send("201".encode('utf-8'))
                             continue
                         break
                     
@@ -123,7 +116,6 @@ class Server:
                 msg_client = connection.recv(4096).decode("utf-8").split("&")
                 
                 if msg_client[0] == "type":
-                    print(msg_client)
                     if msg_client[1] == "undecided":
                         print(msg_client)
                         if msg_client[3] in ["1","2","3"]:
@@ -148,7 +140,7 @@ class Server:
                         chat = UserObject.chat # mandar a solicitação de chat aqui
                         break
                 
-        while True: 
+        while self.clientComunicationRunning: 
             try:
                 msg_client = connection.recv(4096).decode("utf-8").split("&") # receber a mensagem do cliente e separar o comando do texto
                 print(msg_client) 
@@ -156,23 +148,27 @@ class Server:
             
                 if msg_client[0] == "msg":
                     if msg_client[1].lower() == 'exit':
-                        print(f"Desconectado: {UserObject.nickname}")
+                        
                         response = '250'
-                        for participants in chat.getClients():
-                            with self.Lock:
+                        with self.Lock: 
+                            for participants in chat.getClients():
+                            
                                 self.OnlineUsers.remove(participants[0])
-                            participants[1].send(f"{response}".encode('utf-8')) #talvez cause bug
+                                participants[1].send(f"{response}".encode('utf-8')) #talvez cause bug por causa do lock 
+                                print(f"------ Desconectado: ", participants[0], "------")
+                        
                             connection.close()
-                        break
+                            self.clientComunicationRunning = False
+                            break
                     
                     else:
-                        for participants in chat.getClients():
-                            
-                            participants[1].send(f"240&{UserObject.nickname}: {msg_client[1]}".encode('utf-8'))  
+                        with self.Lock:
+                            for participants in chat.getClients():
+                                participants[1].send(f"240&{UserObject.nickname}: {msg_client[1]}".encode('utf-8'))  
                         
-            except ConnectionResetError as e:
-                print("Ouve um erro na conexão!")
-                 
+            except Exception as e:
+                print("Erro durante a comunicação com o cliente:", e)
+                break
                 
         
     def matchClients(self, chat, UserObject):
@@ -204,3 +200,6 @@ class Server:
 
 servidor = Server("0.0.0.0", 12345)
 servidor.start_server()
+
+
+print("Fim do servidor")
